@@ -1,41 +1,56 @@
-const { WAConnection } = require('@adiwajshing/baileys');
+const { default: makeWASocket, DisconnectReason } = require('@adiwajshing/baileys');
 const express = require('express');
 const fs = require('fs');
 
 const app = express();
 app.use(express.json());
 
-let conn = new WAConnection();
+let sock;
 
 async function initializeWhatsApp() {
-  conn.on('open', () => {
-    const authInfo = conn.base64EncodedAuthInfo();
-    fs.writeFileSync('./auth_info.json', JSON.stringify(authInfo, null, '\t'));
-    console.log('WhatsApp připojen.');
-  });
+    sock = makeWASocket();
 
-  fs.existsSync('./auth_info.json') && conn.loadAuthInfo('./auth_info.json');
-  await conn.connect();
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect } = update;
+
+        if (connection === 'close') {
+            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            console.log('Připojení zavřeno, pokus o opětovné připojení:', shouldReconnect);
+            if (shouldReconnect) {
+                initializeWhatsApp();
+            }
+        } else if (connection === 'open') {
+            console.log('WhatsApp připojen.');
+        }
+    });
+
+    sock.ev.on('creds.update', saveCreds);
+}
+
+function saveCreds() {
+    // Zde můžete uložit přihlašovací údaje pro opětovné použití
+    console.log('Ukládání přihlašovacích údajů.');
 }
 
 app.post('/sendMessage', async (req, res) => {
-  const { type, message } = req.body;
+    const { type, message } = req.body;
 
-  try {
-    if (type === 'Sypané') {
-      const groupId = 'XXXX-XXXX@g.us'; // Nahraďte ID skupiny
-      await conn.sendMessage(groupId, message, 'conversation');
-    } else if (type === 'Rovnané') {
-      const contact = '420774900229@s.whatsapp.net'; // Formát čísla
-      await conn.sendMessage(contact, message, 'conversation');
+    try {
+        if (type === 'Sypané') {
+            const groupId = 'XXXX-XXXX@g.us'; // Nahraďte ID skupiny
+            await sock.sendMessage(groupId, { text: message });
+        } else if (type === 'Rovnané') {
+            const contact = '420774900229@s.whatsapp.net'; // Formát čísla
+            await sock.sendMessage(contact, { text: message });
+        }
+        res.send('Zpráva byla odeslána!');
+    } catch (error) {
+        console.error('Chyba při odesílání zprávy:', error);
+        res.status(500).send('Chyba při odesílání zprávy.');
     }
-    res.send('Zpráva byla odeslána!');
-  } catch (error) {
-    console.error(error);
-    res.status(500).send('Chyba při odesílání zprávy.');
-  }
 });
 
 initializeWhatsApp();
 
-app.listen(3000, () => console.log('Server běží na portu 3000'));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server běží na portu ${PORT}`));
