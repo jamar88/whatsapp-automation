@@ -1,4 +1,4 @@
-const { default: makeWASocket, DisconnectReason } = require('@adiwajshing/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@adiwajshing/baileys');
 const express = require('express');
 const fs = require('fs');
 
@@ -8,7 +8,13 @@ app.use(express.json());
 let sock;
 
 async function initializeWhatsApp() {
-    sock = makeWASocket();
+    const { state, saveCreds } = await useMultiFileAuthState('./auth_info'); // Správa autentizačního stavu
+
+    sock = makeWASocket({
+        auth: state, // Předání autentizačního stavu do Baileys
+    });
+
+    sock.ev.on('creds.update', saveCreds); // Ukládání přihlašovacích údajů
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
@@ -23,13 +29,6 @@ async function initializeWhatsApp() {
             console.log('WhatsApp připojen.');
         }
     });
-
-    sock.ev.on('creds.update', saveCreds);
-}
-
-function saveCreds() {
-    // Zde můžete uložit přihlašovací údaje pro opětovné použití
-    console.log('Ukládání přihlašovacích údajů.');
 }
 
 app.post('/sendMessage', async (req, res) => {
