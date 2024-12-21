@@ -1,0 +1,13 @@
+{
+  "name": "whatsapp-automation",
+  "version": "1.0.0",
+  "description": "Automatické odesílání zpráv přes WhatsApp",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@adiwajshing/baileys": "^4.0.0",
+    "express": "^4.17.1"
+  }
+}
